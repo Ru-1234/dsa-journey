@@ -1,0 +1,378 @@
+#include <iostream>
+#include <cstring>
+using namespace std;
+
+struct Experiment {
+    int experimentID;
+    char experimentName[50];
+    int executionTime;
+    int dependencyID;   //if 0 then no dependecy
+    int priorityLevel;
+    int failureCount;
+
+    Experiment* next;
+};
+
+class LinkedList {
+    private:
+        Experiment* head;
+
+        Experiment* createNode(int id, const char* name, int time, int depID, int prLevel, int failCount) {
+            Experiment* nn = new Experiment;
+
+            nn->experimentID = id;
+            strcpy(nn->experimentName, name);
+            nn->executionTime = time;
+            nn->dependencyID = depID;
+            nn->priorityLevel = prLevel;
+            nn->failureCount = failCount;
+            nn->next = NULL;
+
+            return nn;
+        }
+
+        Experiment* findByID(int id){
+            Experiment* temp = head;
+
+            while(temp!=NULL){ 
+                if(temp->experimentID==id)
+                    return temp;
+
+                temp=temp->next;
+            }
+            return NULL;
+        }
+
+        bool dependsOn(int id, int targetID) {
+            Experiment* curr = findByID(id);
+            
+            int visited = 0;
+            while (curr!=NULL && curr->dependencyID!=0 && visited<1000) {
+                if (curr->dependencyID == targetID)
+                    return true;
+
+                curr = findByID(curr->dependencyID);
+                visited++;
+            }
+            return false;
+        }
+
+    public:
+        LinkedList() {head = NULL;}
+        bool isEmpty() { return head == NULL;}
+    
+        void insert(int id, const char* name, int time, int depID, int prLevel, int failCount) {
+            if (findByID(id)!=NULL) {
+                cout << "Experiment with ID " << id << " already exists!" <<endl;
+                return;
+            }
+
+            if (depID!=0 && dependsOn(depID, id)) {
+            cout << "Circular dependency detected! Cannot insert Experiment." << id << endl;
+            return;
+            }
+
+            Experiment* nn =createNode(id, name, time, depID, prLevel, failCount);
+
+            if (isEmpty()){
+                head = nn;
+                return;
+            }
+
+            if (depID==0) {
+                Experiment* temp = head;
+                while (temp->next != NULL)
+                    temp = temp->next;
+                temp->next = nn;
+                return;
+             }
+
+            Experiment* depNode = findByID(depID);
+            if (depNode == NULL) {
+                cout << "Dependency ID " << depID << " not found. Appending at end." << endl;
+                Experiment* temp = head;
+                while (temp->next != NULL)
+                    temp = temp->next;
+                temp->next = nn;
+                return;
+            }
+
+            nn->next = depNode->next;
+            depNode->next = nn;
+            cout << "Inserted after Experiment " << depID << endl;
+        }
+
+    void reorderPriority() {
+        if (isEmpty() || head->next == NULL) return;
+
+        Experiment* sorted = NULL;
+        Experiment* curr = head;
+        while (curr != NULL) {
+            Experiment* next = curr->next;
+
+            if (sorted == NULL || curr->priorityLevel > sorted->priorityLevel) {
+                curr->next = sorted;
+                sorted = curr;
+            } else {
+                Experiment* temp = sorted;
+                while (temp->next != NULL &&
+                       temp->next->priorityLevel >= curr->priorityLevel)
+                    temp = temp->next;
+                curr->next = temp->next;
+                temp->next = curr;
+            }
+            curr = next;
+        }
+
+        head =sorted;
+        cout << "Pipeline reordered by priority." <<endl;
+    }
+
+    void retryPromote(int limit) {
+        if (isEmpty() || head->next == NULL)
+         return;
+
+        Experiment* curr =head;
+        Experiment* prev = NULL;
+
+        while (curr != NULL) {
+            if (curr->failureCount > limit && prev != NULL) {
+                bool depSatisfied = (curr->dependencyID == 0);
+                if (!depSatisfied) {
+                    Experiment* check = head;
+                    while (check != prev->next) { 
+                        if (check->experimentID == curr->dependencyID) {
+                            depSatisfied = true;
+                            break;
+                        }
+                        check = check->next;
+                    }
+                }
+
+                if (depSatisfied) {
+                    prev->next = curr->next;
+
+                    curr->next = head;
+                    head = curr;
+
+                    curr = prev->next;
+                } 
+                else {
+                    prev = curr;
+                    curr = curr->next;
+                }
+            } 
+            else {
+                prev = curr;
+                curr = curr->next;
+            }
+        }
+        cout << "Retry promotion done." << endl;
+    }
+
+    void detectErrors() {
+        if (isEmpty()) {
+            cout << "Pipeline is empty!"<< endl;
+            return;
+        }
+
+        cout << endl << "Workflow Error Detection" << endl;
+        bool anyError = false;
+
+        Experiment* curr = head;
+        while (curr != NULL) {
+            if (curr->dependencyID != 0) {
+                Experiment* dep = findByID(curr->dependencyID);
+                if (dep == NULL) {
+                    cout << "[Missing Dependency] Experiment " << curr->experimentID
+                         << " (" << curr->experimentName << ") requires Experiment " << curr->dependencyID
+                         << " which does not exist."<< endl;
+                    anyError = true;
+                }
+                else {
+                    bool foundDepBefore = false;
+                    Experiment* temp = head;
+                    while (temp != curr) {
+                        if (temp->experimentID == curr->dependencyID) {
+                            foundDepBefore = true;
+                            break;
+                        }
+                        temp = temp->next;
+                    }
+                    if (!foundDepBefore) {
+                        cout << "[Order Error] Experiment " << curr->experimentID
+                             << " appears before its dependency "
+                             << curr->dependencyID << "."<< endl;
+                        anyError = true;
+                    }
+                }
+            }
+
+            if (curr->dependencyID != 0 && dependsOn(curr->dependencyID, curr->experimentID)) {
+                cout << "[Circular Dependency] Experiment " << curr->experimentID
+                     << " is part of a circular chain."<< endl;
+                anyError = true;
+            }
+
+            curr = curr->next;
+        }
+
+        if (!anyError)
+            cout << "No workflow errors detected."<< endl;
+    }
+
+    void parallelGroups() {
+        if (isEmpty() || head->next == NULL) {
+            cout << "Not enough experiments for parallel analysis."<< endl;
+            return;
+        }
+
+        cout << "Parallel Execution Candidates";
+        bool found = false;
+        Experiment* curr = head;
+
+        while (curr != NULL && curr->next != NULL) {
+            Experiment* a = curr;
+            Experiment* b = curr->next;
+
+            if (b->dependencyID != a->experimentID &&
+                a->dependencyID != b->experimentID) {
+                cout << "Parallel Pair:"<< endl;
+                cout << "  -> ID: " << a->experimentID << " Name: " << a->experimentName << endl;
+                cout << "  -> ID: " << b->experimentID << " Name: " << b->experimentName << endl;
+                found = true;
+            }
+            curr = curr->next;
+        }
+
+        if (!found)
+            cout << "No parallel candidates found." << endl;
+    }
+
+    void failureCascade(int id) {
+        if (findByID(id) == NULL) {
+            cout << "Experiment " << id << " not found!"<< endl;
+            return;
+        }
+
+        bool removed = true;
+        while (removed) {
+            removed = false;
+
+            while (head != NULL &&
+                   (head->experimentID == id || head->dependencyID == id)) {
+                int removedID = head->experimentID;
+                Experiment* del = head;
+                head = head->next;
+                delete del;
+                removed = true;
+                if (removedID != id) id = removedID; 
+            }
+
+            Experiment* curr = head;
+            while (curr != NULL && curr->next != NULL) {
+                if (curr->next->experimentID == id ||
+                    curr->next->dependencyID == id) {
+                    int removedID = curr->next->experimentID;
+                    Experiment* del = curr->next;
+                    curr->next = del->next;
+                    delete del;
+                    removed = true;
+                } else {
+                    curr = curr->next;
+                }
+            }
+        }
+        cout << "Failure cascade removal complete."<< endl;
+    }
+
+    void optimizationPass() {
+        reorderPriority();
+        cout << "Optimization pass complete."<< endl;
+    }
+
+    void display() {
+        if (isEmpty()) {
+            cout << "Pipeline is empty!"<< endl;
+            return;
+        }
+        cout << "\n Experiment Pipeline"<< endl;
+        Experiment* temp = head;
+        int i=1;
+        while (temp != NULL) {
+            cout << i++ << ". ID: " << temp->experimentID
+                 << " | Name: " << temp->experimentName
+                 << " | Time: " << temp->executionTime
+                 << " | Dep: " << temp->dependencyID
+                 << " | Priority: " << temp->priorityLevel
+                 << " | Failures: " << temp->failureCount << endl;
+            temp = temp->next;
+        }
+    }
+};
+
+int main() {
+    LinkedList L;
+    int choice;
+
+    do {
+        cout << endl << "+++++++EXPERIMENT PIPELINE MENU+++++" << endl;
+        cout << "1. Insert Experiment"<< endl;
+        cout << "2. Priority Reorder"<< endl;
+        cout << "3. Retry Promotion"<< endl;
+        cout << "4. Detect Workflow Errors"<< endl;
+        cout << "5. Parallel Execution Candidates" << endl;
+        cout << "6. Failure Cascade Removal"<< endl;
+        cout << "7. Optimization Pass"<< endl;
+        cout << "8. Display Pipeline"<< endl;
+        cout << "0. Exit"<< endl;
+        cout << "Enter Choice: ";
+        cin >> choice;
+
+        if (choice == 1) {
+            int id, time, dep, pri, fail;
+            char name[50];
+
+            cout << "Enter Experiment ID: "; cin >> id;
+            cout << "Enter Name: "; cin >> name;
+            cout << "Enter Execution Time: "; cin >> time;
+            cout << "Enter Dependency ID (0 = none): "; cin >> dep;
+            cout << "Enter Priority Level: "; cin >> pri;
+            cout << "Enter Failure Count: "; cin >> fail;
+
+            L.insert(id, name, time, dep, pri, fail);
+        }
+        else if (choice == 2) {
+            L.reorderPriority();
+        }
+        else if (choice == 3) {
+            int lim;
+            cout << "Enter Failure Limit: "; cin >> lim;
+            L.retryPromote(lim);
+        }
+        else if (choice == 4) {
+            L.detectErrors();
+        }
+        else if (choice == 5) {
+            L.parallelGroups();
+        }
+        else if (choice == 6) {
+            int id;
+            cout << "Enter Failed Experiment ID: "; cin >> id;
+            L.failureCascade(id);
+        }
+        else if (choice == 7) {
+            L.optimizationPass();
+        }
+        else if (choice == 8) {
+            L.display();
+        }
+        else if (choice != 0) {
+            cout << "Invalid choice! Try again."<< endl;
+        }
+
+    } while (choice != 0);
+
+    cout << "Goodbye!"<< endl;
+    return 0;
+}
