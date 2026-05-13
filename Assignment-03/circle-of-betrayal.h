@@ -1,5 +1,5 @@
-#ifndef CIRCLE_OF_BETRAYAL_H
-#define CIRCLE_OF_BETRAYAL_H
+#ifndef Q2_H
+#define Q2_H
 
 #include <iostream>
 #include <string>
