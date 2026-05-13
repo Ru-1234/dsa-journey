@@ -1,0 +1,371 @@
+// Romaisa 24i-0061 AI-B Assignmnt 1
+#include <iostream>
+#include <cstring>
+using namespace std;
+
+struct Contributor {
+    int contributorID;
+    char contributorName[50];
+    int skillLevel;         // 0-Beginer, 1-Intermediate, 2-Advance
+    int contributionScore;
+    int warningCount;
+    bool isMentor;
+
+    Contributor* next;
+};
+
+class LinkedList {
+    Contributor* head;
+
+    Contributor* createNode(int id, const char* name, int skill, int score, int warn, bool mentor) {
+        Contributor* nn = new Contributor;
+        
+        nn->contributorID = id;
+        strcpy(nn->contributorName, name);
+        nn->skillLevel = skill;
+        nn->contributionScore = score;
+        nn->warningCount = warn;
+        nn->isMentor = mentor;
+        nn->next = NULL;
+        
+        return nn;
+    }
+
+public:
+    LinkedList(){ 
+      head = NULL;
+    }
+    bool isEmpty(){ 
+      return head == NULL;
+    }
+
+    void addContributor(int id, const char* name, int skill, int score, int warn, bool mentor) {
+        Contributor* nn = createNode(id, name, skill, score, warn, mentor);
+
+        if(isEmpty()){ head=nn; return; }
+
+        if(mentor){
+            nn->next=head;
+            head=nn;
+            return;
+        }
+
+        //New node-> Advanced (skill=2) → insert after last mentor
+        if (skill == 2){
+            Contributor* temp = head;
+            Contributor* prev = NULL;
+
+            while (temp!=NULL && temp->isMentor){
+                prev=temp;
+                temp=temp->next;
+            }
+
+            nn->next=temp;
+            if (prev ==NULL)
+                head = nn;  //no mentos exist
+            else
+                prev->next = nn;
+            return;
+        }
+
+        Contributor* temp = head;
+        while (temp->next!= NULL)
+            temp= temp->next;
+        temp->next =nn;
+    }
+
+    void promote(int threshold){
+        if(isEmpty() || head->next==NULL) 
+            return;
+
+        Contributor* curr=head;
+        Contributor* prev= NULL;
+
+        while(curr!=NULL) {
+            if(!curr->isMentor && curr->contributionScore>threshold && prev != NULL && !prev->isMentor) {
+                prev->next = curr->next;
+
+                Contributor* temp =head;
+                Contributor* tprev= NULL;
+                while (temp!=NULL && temp->isMentor) {
+                    tprev=temp;
+                    temp=temp->next;
+                }
+
+                curr->next = temp;
+            if (tprev ==NULL)
+                    head = curr;
+                else
+                    tprev->next= curr;
+
+                curr = prev->next;
+            } else {
+                prev = curr;
+                curr = curr->next;
+            }
+        }
+    }
+
+    void removeInactive(int limit) {
+        while (head != NULL && head->warningCount > limit) {
+            Contributor* del=head;
+            head =head->next;
+            delete del;
+        }
+
+        Contributor* temp = head;
+        while (temp!=NULL && temp->next!=NULL) {
+            if (temp->next->warningCount>limit) {
+                Contributor* del =temp->next;
+                temp->next = del->next;
+                delete del;
+            } else {
+                temp =temp->next;
+            }
+        }
+    }
+
+    void mergeConsecutive() {
+        Contributor* temp =head;
+        Contributor* prev= NULL;
+
+        while (temp != NULL && temp->next != NULL){
+            if (temp->skillLevel ==temp->next->skillLevel) {
+                Contributor* a =temp;
+                Contributor* b =temp->next;
+
+                if(a->contributionScore >= b->contributionScore) {
+                   
+                    a->contributionScore += b->contributionScore;
+                    a->next = b->next;
+                    delete b;
+                } 
+                
+                else {
+                    b->contributionScore += a->contributionScore;
+                    if (prev ==NULL)
+                        head= b;
+                    else
+                        prev->next = b;
+                    delete a;
+                    temp =b;
+                }
+            } 
+            
+            else {
+                prev=temp;
+                temp= temp->next;
+            }
+        }
+    }
+
+    void reverseSegment(int id1, int id2) {
+        if (isEmpty() || id1==id2) 
+            return;
+
+        Contributor* prevStart =NULL;
+        Contributor* start =head;
+        while (start !=NULL && start->contributorID != id1) {
+            prevStart = start;
+            start = start->next;
+        }
+        if (start == NULL){ 
+                cout << "ID " << id1 << " not found!" << endl;
+                return; 
+        }
+
+        //id2
+        Contributor* end = start;
+        while (end != NULL && end->contributorID != id2) {
+            end = end->next;
+        }
+        if (end == NULL) { 
+            cout << "ID " << id2 << " not found!" << endl; 
+            return; 
+        }
+
+        Contributor* prev = end->next;
+                Contributor* curr = start;
+        Contributor* afterEnd = end->next;
+
+        while (curr != afterEnd){
+            Contributor* next =curr->next;
+            curr->next =prev;
+            prev = curr;
+            curr = next;
+        }
+
+        if (prevStart ==NULL)
+            head = prev;
+        else
+            prevStart->next = prev;
+    }
+
+    void generateReport() {
+        if (isEmpty()) {
+            cout << "List is empty! " << endl;
+            return;
+        }
+
+        int totalMentors= 0;
+        int count = 0;
+        int maxScore = -1;
+        Contributor* topContributor = NULL;
+
+        int longestStreak =1, currentStreak =1;
+        int streakSkill = head->skillLevel;
+        int prevSkill = head->skillLevel;
+
+        Contributor* temp = head;
+        while (temp != NULL) {
+            if (temp->isMentor) 
+                totalMentors++;
+            if (temp->contributionScore>maxScore) {
+                    maxScore = temp->contributionScore;
+                    topContributor = temp;
+            }
+
+            //tracking
+            if (temp != head) {
+                if (temp->skillLevel ==prevSkill) {
+                    currentStreak++;
+                    if (currentStreak>longestStreak)
+                        longestStreak = currentStreak;
+                } else {
+                    currentStreak = 1;
+                    prevSkill = temp->skillLevel;
+                }
+            }
+
+            count++;
+            temp = temp->next;
+        }
+
+        int half = count/2;
+        temp = head;
+        int sum = 0;
+        for (int i = 0; i < half; i++) {
+            sum += temp->contributionScore;
+            temp = temp->next;
+        }
+        float avg = (half>0)? (float)sum/half : 0;
+
+        cout << "\nSESSION REPORT" << endl;
+        cout << "Total Contributors : " << count << endl;
+        cout << "Total Mentors      : " << totalMentors << endl;
+        if (topContributor)
+            cout << "Top Contributor    : " << topContributor->contributorName<< " (Score: " << maxScore << ")" << endl;
+        cout << "Longest Skill Streak: " << longestStreak << " consecutive\n";
+        cout << "Avg Score (1st Half): " << avg << endl;
+    }
+
+    void display() {
+        if (isEmpty()) {
+            cout << "List is empty!\n";
+            return;
+        }
+        cout << "\nContributor List "<<endl;
+        Contributor* temp = head;
+        int i = 1;
+        while (temp != NULL) {
+            cout << i++ << ". ID: " << temp->contributorID
+                 << " | Name: " << temp->contributorName
+                 << " | Skill: " << temp->skillLevel
+                 << " | Score: " << temp->contributionScore
+                 << " | Warnings: " << temp->warningCount
+                 << " | Mentor: " << (temp->isMentor ? "Yes" : "No") << endl;
+            temp = temp->next;
+        }
+    }
+};
+
+int main() {
+    LinkedList L;
+    int choice;
+
+    do {
+        cout << "\n******* CODECOLLAB MENU *******" << endl;
+        cout << "1. Add Contributor" << endl;
+        cout << "2. Promote Active Contributors" << endl;
+        cout << "3. Remove Inactive Contributors" << endl;
+        cout << "4. Merge Consecutive Collaborators" << endl;
+        cout << "5. Reverse Segment" << endl;
+        cout << "6. Generate Session Report\n";
+        cout << "7. Display List" << endl;
+        cout << "0. Exit" << endl;
+        cout << "Enter Choice: ";
+        cin >> choice;
+
+        if (choice == 1) {
+            int id, skillLevel, score, warnCount;
+            char name[50];
+            int mentor;
+
+            cout << "Enter ID: "; 
+            cin >> id;
+
+            cout << "Enter Name: "; 
+            cin >> name;
+
+            cout << "Enter Skill Level (0=Beginner, 1=Intermediate, 2=Advanced): "; 
+            cin >> skillLevel;
+
+            cout << "Enter Contribution Score: "; 
+            cin >> score;
+
+            cout << "Enter Warning Count: "; 
+            cin >> warnCount;
+
+            cout << "Is Mentor? (1=Yes, 0=No): ";
+            cin >> mentor;
+
+            if (skillLevel<0 || skillLevel>2) {
+                cout << "Invalid skill level! Must be 0, 1, or 2. " <<endl;
+            } 
+            else {
+                L.addContributor(id, name, skillLevel, score, warnCount, mentor == 1);
+                cout <<"Contributor added successfully"<<endl;
+            }
+        }
+        else if (choice==2) {
+            int t;
+            cout << "Enter Score Threshold: "; 
+            cin >> t;
+            L.promote(t);
+            cout << "Promotion done.\n";
+        }
+        else if (choice == 3) {
+            int l;
+            cout << "Enter Warning Limit: "; 
+            cin >> l;
+            L.removeInactive(l);
+            cout<<"Inactive contributors removed."<<endl;
+        }
+        else if (choice == 4) {
+            L.mergeConsecutive();
+            cout << "Merge done.\n";
+        }
+        else if (choice == 5) {
+            int a, b;
+            cout << "Enter Start ID: "; 
+            cin >> a;
+            cout << "Enter End ID: "; 
+            cin >> b;
+            L.reverseSegment(a, b);
+            cout << "Segment reversed." << endl;
+        }
+        else if (choice == 6) {
+            L.generateReport();
+        }
+        else if (choice == 7) {
+            L.display();
+        }
+        else if (choice != 0) {
+            cout << "Invalid choice! Try again." << endl;
+        }
+
+    } while (choice != 0);
+
+    cout << "bye!" << endl;
+    return 0;
+}
